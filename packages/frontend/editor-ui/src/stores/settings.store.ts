@@ -133,6 +133,10 @@ export const useSettingsStore = defineStore(STORES.SETTINGS, () => {
 		() => settings.value.telemetry && settings.value.telemetry.enabled,
 	);
 
+	const isMFAEnforcementLicensed = computed(() => {
+		return settings.value.enterprise.mfaEnforcement;
+	});
+
 	const isMfaFeatureEnabled = computed(() => mfa.value.enabled);
 
 	const isFoldersFeatureEnabled = computed(() => folders.value.enabled);
@@ -406,5 +410,6 @@ export const useSettingsStore = defineStore(STORES.SETTINGS, () => {
 		activeModules,
 		getModuleSettings,
 		moduleSettings,
+		isMFAEnforcementLicensed,
 	};
 });
