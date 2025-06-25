@@ -1,17 +1,28 @@
 <script setup lang="ts">
 import { useFocusPanelStore } from '@/stores/focusPanel.store';
+import { useWorkflowsStore } from '@/stores/workflows.store';
 import { N8nText, N8nInput } from '@n8n/design-system';
 import { computed } from 'vue';
 import { useI18n } from '@n8n/i18n';
 import { isValueExpression } from '@/utils/nodeTypesUtils';
+import { useNodeSettingsParameters } from '@/composables/useNodeSettingsParameters';
+import { useNodeTypesStore } from '@/stores/nodeTypes.store';
 
 defineOptions({ name: 'FocusPanel' });
 
 const locale = useI18n();
 
+const nodeSettingsParameters = useNodeSettingsParameters();
 const focusPanelStore = useFocusPanelStore();
+const workflowsStore = useWorkflowsStore();
+const nodeTypesStore = useNodeTypesStore();
 
 const focusedNodeParameter = computed(() => focusPanelStore.focusedNodeParameters[0]);
+
+const _node = computed(() => workflowsStore.getNodeByName(focusedNodeParameter.value?.nodeName));
+const isToolNode = computed(() =>
+	_node.value ? nodeTypesStore.isToolNode(_node.value.type) : false,
+);
 
 const focusPanelActive = computed(() => focusPanelStore.focusPanelActive);
 
@@ -25,8 +36,17 @@ function optionSelected() {
 	// TODO: Handle the option selected (command: string) from the dropdown
 }
 
-function valueChanged() {
-	// TODO: Update parameter value
+function valueChanged(value: string) {
+	if (_node.value === null) {
+		return;
+	}
+
+	nodeSettingsParameters.updateNodeParameter(
+		{ value, name: `parameters.${focusedNodeParameter.value.parameter.name}` },
+		value,
+		_node.value,
+		isToolNode.value,
+	);
 }
 
 function executeFocusedNode() {
@@ -96,6 +116,7 @@ function executeFocusedNode() {
 						:class="$style.editor"
 						type="textarea"
 						resize="none"
+						@change="valueChanged"
 					></N8nInput>
 				</div>
 			</div>
