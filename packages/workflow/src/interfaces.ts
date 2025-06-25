@@ -2638,6 +2638,11 @@ export type PublicInstalledPackage = {
 	failedLoading?: boolean;
 };
 
+export type VerifiedPackage = {
+	name: string;
+	attributes: Record<string, any>;
+};
+
 export type PublicInstalledNode = {
 	name: string;
 	type: string;

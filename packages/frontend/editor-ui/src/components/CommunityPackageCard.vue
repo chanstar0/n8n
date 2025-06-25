@@ -1,22 +1,23 @@
 <script lang="ts" setup>
 import { useUIStore } from '@/stores/ui.store';
-import type { PublicInstalledPackage } from 'n8n-workflow';
+import type { PublicInstalledPackage, VerifiedPackage } from 'n8n-workflow';
 import { NPM_PACKAGE_DOCS_BASE_URL, COMMUNITY_PACKAGE_MANAGE_ACTIONS } from '@/constants';
 import { useI18n } from '@n8n/i18n';
 import { useTelemetry } from '@/composables/useTelemetry';
 import { useSettingsStore } from '@/stores/settings.store';
-import { useNodeTypesStore } from '@/stores/nodeTypes.store';
-import { computed, ref, watch } from 'vue';
+import { computed } from 'vue';
 import semver from 'semver';
 
 interface Props {
 	communityPackage?: PublicInstalledPackage | null;
 	loading?: boolean;
+	verifiedPackage?: VerifiedPackage | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
 	communityPackage: null,
 	loading: false,
+	verifiedPackage: null,
 });
 
 const { openCommunityPackageUpdateConfirmModal, openCommunityPackageUninstallConfirmModal } =
@@ -25,9 +26,7 @@ const i18n = useI18n();
 const telemetry = useTelemetry();
 
 const settingsStore = useSettingsStore();
-const nodeTypesStore = useNodeTypesStore();
 
-const latestVerifiedVersion = ref<string>();
 const currVersion = computed(() => props.communityPackage?.installedVersion || '');
 
 const hasUnverifiedPackagesUpdate = computed(() => {
@@ -35,8 +34,10 @@ const hasUnverifiedPackagesUpdate = computed(() => {
 });
 
 const hasVerifiedPackageUpdate = computed(() => {
-	const canUpdate =
-		latestVerifiedVersion.value && semver.gt(latestVerifiedVersion.value || '', currVersion.value);
+	const canUpdate = semver.gt(
+		props.verifiedPackage?.attributes.npmVersion || '',
+		currVersion.value,
+	);
 
 	return settingsStore.isCommunityNodesFeatureEnabled && canUpdate;
 });
@@ -75,24 +76,6 @@ function onUpdateClick() {
 	if (!props.communityPackage) return;
 	openCommunityPackageUpdateConfirmModal(props.communityPackage.packageName);
 }
-
-watch(
-	() => props.communityPackage?.packageName,
-	async (packageName) => {
-		if (packageName) {
-			await nodeTypesStore.loadNodeTypesIfNotLoaded();
-			const nodeType = nodeTypesStore.visibleNodeTypes.find((node) =>
-				node.name.includes(packageName),
-			);
-
-			const attributes = await nodeTypesStore.getCommunityNodeAttributes(nodeType?.name || '');
-			if (attributes?.npmVersion) {
-				latestVerifiedVersion.value = attributes.npmVersion;
-			}
-		}
-	},
-	{ immediate: true },
-);
 </script>
 
 <template>

@@ -6,7 +6,7 @@ import {
 import CommunityPackageCard from '@/components/CommunityPackageCard.vue';
 import { useToast } from '@/composables/useToast';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
-import type { PublicInstalledPackage } from 'n8n-workflow';
+import type { PublicInstalledPackage, VerifiedPackage } from 'n8n-workflow';
 
 import { useCommunityNodesStore } from '@/stores/communityNodes.store';
 import { useUIStore } from '@/stores/ui.store';
@@ -18,6 +18,7 @@ import { usePushConnectionStore } from '@/stores/pushConnection.store';
 import { useI18n } from '@n8n/i18n';
 import { useTelemetry } from '@/composables/useTelemetry';
 import { useSettingsStore } from '@/stores/settings.store';
+import { useNodeTypesStore } from '@/stores/nodeTypes.store';
 
 const PACKAGE_COUNT_THRESHOLD = 31;
 
@@ -33,9 +34,11 @@ const toast = useToast();
 const documentTitle = useDocumentTitle();
 
 const communityNodesStore = useCommunityNodesStore();
+const nodeTypesStore = useNodeTypesStore();
 const uiStore = useUIStore();
 const settingsStore = useSettingsStore();
 
+const verifiedPackages = ref<VerifiedPackage[]>([]);
 const getEmptyStateTitle = computed(() => {
 	if (!settingsStore.isUnverifiedPackagesEnabled) {
 		return i18n.baseText('settings.communityNodes.empty.verified.only.title');
@@ -127,6 +130,23 @@ onMounted(async () => {
 			}),
 			number_of_updates_available: packagesToUpdate.length,
 		});
+
+		await nodeTypesStore.loadNodeTypesIfNotLoaded();
+
+		const verifiedPackagesArray: VerifiedPackage[] = [];
+
+		for (const communityPackage of communityNodesStore.getInstalledPackages) {
+			const nodeType = nodeTypesStore.visibleNodeTypes.find((node) =>
+				node.name.includes(communityPackage.packageName),
+			);
+			verifiedPackagesArray.push({
+				name: communityPackage.packageName,
+				attributes: nodeType
+					? (await nodeTypesStore.getCommunityNodeAttributes(nodeType.name)) || {}
+					: {},
+			});
+		}
+		verifiedPackages.value = verifiedPackagesArray;
 	} catch (error) {
 		toast.showError(
 			error,
@@ -190,6 +210,7 @@ onBeforeUnmount(() => {
 				v-for="communityPackage in communityNodesStore.getInstalledPackages"
 				:key="communityPackage.packageName"
 				:community-package="communityPackage"
+				:verified-package="verifiedPackages.find((p) => p.name === communityPackage.packageName)"
 			></CommunityPackageCard>
 		</div>
 	</div>
