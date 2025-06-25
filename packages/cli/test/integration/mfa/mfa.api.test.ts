@@ -1,4 +1,4 @@
-import { UserRepository, type User } from '@n8n/db';
+import { SettingsRepository, UserRepository, type User } from '@n8n/db';
 import { Container } from '@n8n/di';
 import { randomString } from 'n8n-workflow';
 
@@ -13,6 +13,7 @@ import { createOwner, createUser, createUserWithMfaEnabled } from '../shared/db/
 import { randomValidPassword, uniqueId } from '../shared/random';
 import * as testDb from '../shared/test-db';
 import * as utils from '../shared/utils';
+import { MFA_ENFORCE_SETTING } from '@/mfa/constants';
 
 jest.mock('@/telemetry');
 
@@ -403,5 +404,35 @@ describe('Login', () => {
 			expect(dbUser.mfaRecoveryCodes.length).toBe(rawRecoveryCodes.length - 1);
 			expect(dbUser.mfaRecoveryCodes.includes(rawRecoveryCodes[0])).toBe(false);
 		});
+	});
+});
+
+describe('Enforce MFA', () => {
+	test('Enforce MFA for the instance', async () => {
+		const settingsRepository = Container.get(SettingsRepository);
+
+		let enforced = await settingsRepository.findByKey(MFA_ENFORCE_SETTING);
+
+		expect(enforced).toBe(null);
+
+		await testServer.authAgentFor(owner).post('/enforce-mfa').send({ enforce: true }).expect(200);
+
+		enforced = await settingsRepository.findByKey(MFA_ENFORCE_SETTING);
+
+		expect(enforced).toBe(true);
+	});
+
+	test('Disable MFA for the instance', async () => {
+		const settingsRepository = Container.get(SettingsRepository);
+
+		let enforced = await settingsRepository.findByKey(MFA_ENFORCE_SETTING);
+
+		expect(enforced).toBe(null);
+
+		await testServer.authAgentFor(owner).post('/enforce-mfa').send({ enforce: false }).expect(200);
+
+		enforced = await settingsRepository.findByKey(MFA_ENFORCE_SETTING);
+
+		expect(enforced).toBe(false);
 	});
 });
