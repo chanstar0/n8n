@@ -54,7 +54,6 @@ import { ProjectTypes } from '@/types/projects.types';
 import { updateDynamicConnections } from '@/utils/nodeSettingsUtils';
 import FreeAiCreditsCallout from '@/components/FreeAiCreditsCallout.vue';
 import { useCanvasOperations } from '@/composables/useCanvasOperations';
-import { N8nIconButton } from '@n8n/design-system';
 
 const props = withDefaults(
 	defineProps<{
@@ -68,7 +67,6 @@ const props = withDefaults(
 		executable: boolean;
 		inputSize: number;
 		activeNode?: INodeUi;
-		canExpand?: boolean;
 		hideConnections?: boolean;
 	}>(),
 	{
@@ -78,7 +76,6 @@ const props = withDefaults(
 		inputSize: 0,
 		blockUI: false,
 		activeNode: undefined,
-		canExpand: false,
 		hideConnections: false,
 	},
 );
@@ -91,8 +88,9 @@ const emit = defineEmits<{
 	openConnectionNodeCreator: [nodeName: string, connectionType: NodeConnectionType];
 	activate: [];
 	execute: [];
-	expand: [];
 }>();
+
+const slots = defineSlots<{ actions?: {} }>();
 
 const nodeTypesStore = useNodeTypesStore();
 const ndvStore = useNDVStore();
@@ -1028,7 +1026,7 @@ function displayCredentials(credentialTypeDescription: INodeCredentialDescriptio
 					:read-only="isReadOnly"
 					@update:model-value="nameChanged"
 				></NodeTitle>
-				<div v-if="isExecutable || props.canExpand" :class="$style.headerActions">
+				<div v-if="isExecutable || slots.actions" :class="$style.headerActions">
 					<NodeExecuteButton
 						v-if="isExecutable && !blockUI && node && nodeValid"
 						data-test-id="node-execute-button"
@@ -1041,16 +1039,7 @@ function displayCredentials(credentialTypeDescription: INodeCredentialDescriptio
 						@stop-execution="onStopExecution"
 						@value-changed="valueChanged"
 					/>
-					<N8nIconButton
-						v-if="props.canExpand"
-						icon="expand"
-						type="secondary"
-						text
-						size="mini"
-						icon-size="large"
-						aria-label="Expand"
-						@click="emit('expand')"
-					/>
+					<slot name="actions" />
 				</div>
 			</div>
 			<NodeSettingsTabs
