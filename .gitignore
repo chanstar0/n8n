@@ -26,7 +26,11 @@ build-storybook.log
 junit.xml
 test-results.json
 *.0x
+<<<<<<< Updated upstream
 compiled_app_output
 trivy_report*
 compiled
 jest.config.js
+=======
+.npmrc
+>>>>>>> Stashed changes
