@@ -1,0 +1,403 @@
+{
+  "meta": {
+    "instanceId": "life-tips-video-automation"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "每日触发器",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "生活小妙招主题库",
+              "value": "厨房小技巧,清洁收纳,美容护肤,健康养生,节约省钱,数码技巧,衣物保养,食物保存,手工制作,安全防护,学习效率,时间管理,植物养护,宠物护理,旅行攻略,运动健身,心理调节,人际交往,职场技能,生活创意"
+            }
+          ]
+        }
+      },
+      "id": "topic-pool",
+      "name": "主题池",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 随机选择一个生活小妙招主题\nconst topics = $input.first().json['生活小妙招主题库'].split(',');\nconst randomTopic = topics[Math.floor(Math.random() * topics.length)];\n\n// 生成详细的提示词\nconst prompt = `请生成一个关于\"${randomTopic}\"的生活小妙招视频脚本，要求：\n1. 实用性强，操作简单\n2. 材料常见易获得\n3. 脚本长度30-60秒\n4. 包含标题、步骤说明和注意事项\n5. 语言生动有趣，适合短视频格式\n6. 确保内容安全可靠`;\n\nreturn [{\n  json: {\n    selectedTopic: randomTopic,\n    prompt: prompt,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "generate-prompt",
+      "name": "生成提示词",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "requestBody": {
+          "model": "llama-3.1-70b-versatile",
+          "messages": [
+            {
+              "role": "user",
+              "content": "={{ $json.prompt }}"
+            }
+          ],
+          "max_tokens": 1000,
+          "temperature": 0.7
+        }
+      },
+      "id": "groq-script-generation",
+      "name": "Groq生成脚本",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": "groq_api"
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 解析Groq API响应并提取脚本内容\nconst response = $input.first().json;\nconst scriptContent = response.choices[0].message.content;\n\n// 从脚本中提取关键信息\nconst lines = scriptContent.split('\\n');\nlet title = '';\nlet steps = [];\nlet description = '';\n\nlines.forEach(line => {\n  if (line.includes('标题') || line.includes('题目')) {\n    title = line.replace(/.*[:：]/, '').trim();\n  } else if (line.includes('步骤') || (line.match(/\\d+[.)、]/) && line.length > 10)) {\n    steps.push(line.trim());\n  } else if (line.trim().length > 20 && !title) {\n    title = line.trim();\n  }\n});\n\n// 生成图像提示词\nconst imagePrompt = `生活小妙招演示图：${title}，简洁明了的步骤图解，明亮清晰的背景，实用教程风格`;\n\n// 生成语音脚本（去除标题等标记）\nconst voiceScript = scriptContent\n  .replace(/标题[:：].*?\\n/g, '')\n  .replace(/步骤[:：]/g, '')\n  .replace(/注意事项[:：]/g, '注意：')\n  .replace(/\\d+[.)、]/g, '')\n  .trim();\n\nreturn [{\n  json: {\n    title: title || '实用生活小妙招',\n    fullScript: scriptContent,\n    voiceScript: voiceScript,\n    imagePrompt: imagePrompt,\n    steps: steps,\n    description: `${title} - 简单实用的生活技巧，让生活更美好！#生活小妙招 #实用技巧 #生活分享`\n  }\n}];"
+      },
+      "id": "parse-script",
+      "name": "解析脚本",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.shuttleai.com/v1/images/generations",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $credentials.shuttleai_api.api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "shuttle-3-diffusion"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ $json.imagePrompt }}"
+            },
+            {
+              "name": "n",
+              "value": "1"
+            },
+            {
+              "name": "size",
+              "value": "1024x1024"
+            }
+          ]
+        }
+      },
+      "id": "generate-image",
+      "name": "生成配图",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xi-api-key",
+              "value": "={{ $credentials.elevenlabs_api.api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $json.voiceScript }}"
+            },
+            {
+              "name": "model_id",
+              "value": "eleven_multilingual_v2"
+            },
+            {
+              "name": "voice_settings",
+              "value": "{\"stability\": 0.5, \"similarity_boost\": 0.5, \"style\": 0.0, \"use_speaker_boost\": true}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "arrayBuffer"
+            }
+          }
+        }
+      },
+      "id": "generate-voice",
+      "name": "生成语音",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1340,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "url": "https://api.creatomate.com/v1/renders",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $credentials.creatomate_api.api_key }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "template_id",
+              "value": "life-tips-template"
+            },
+            {
+              "name": "modifications",
+              "value": "{\n  \"title-text\": \"{{ $('parse-script').item.json.title }}\",\n  \"description-text\": \"{{ $('parse-script').item.json.description }}\",\n  \"background-image\": \"{{ $('generate-image').item.json.data[0].url }}\",\n  \"voiceover-audio\": \"data:audio/mp3;base64,{{ $('generate-voice').item.binary.data.data }}\"\n}"
+            }
+          ]
+        }
+      },
+      "id": "create-video",
+      "name": "合成视频",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "your-google-sheet-id",
+          "mode": "id"
+        },
+        "sheetName": "生活小妙招视频记录",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "日期": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+            "主题": "={{ $('topic-pool').item.json['selectedTopic'] }}",
+            "标题": "={{ $('parse-script').item.json.title }}",
+            "脚本": "={{ $('parse-script').item.json.fullScript }}",
+            "视频链接": "={{ $json.url }}",
+            "状态": "已完成"
+          }
+        },
+        "options": {}
+      },
+      "id": "log-to-sheet",
+      "name": "记录到表格",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1780,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "content": "🎉 每日生活小妙招视频生成完成！\n\n📝 **标题**: {{ $('parse-script').item.json.title }}\n🎯 **主题**: {{ $('topic-pool').item.json['selectedTopic'] }}\n🎬 **视频链接**: {{ $('create-video').item.json.url }}\n⏰ **生成时间**: {{ $now.format('yyyy-MM-dd HH:mm:ss') }}\n\n快去查看新的生活小妙招视频吧！ 🚀",
+        "username": "生活小妙招Bot",
+        "avatarUrl": "https://cdn-icons-png.flaticon.com/512/3094/3094837.png"
+      },
+      "id": "discord-notification",
+      "name": "Discord通知",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "每日触发器": {
+      "main": [
+        [
+          {
+            "node": "主题池",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "主题池": {
+      "main": [
+        [
+          {
+            "node": "生成提示词",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "生成提示词": {
+      "main": [
+        [
+          {
+            "node": "Groq生成脚本",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq生成脚本": {
+      "main": [
+        [
+          {
+            "node": "解析脚本",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "解析脚本": {
+      "main": [
+        [
+          {
+            "node": "生成配图",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "生成语音",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "生成配图": {
+      "main": [
+        [
+          {
+            "node": "合成视频",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "生成语音": {
+      "main": [
+        [
+          {
+            "node": "合成视频",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "合成视频": {
+      "main": [
+        [
+          {
+            "node": "记录到表格",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "记录到表格": {
+      "main": [
+        [
+          {
+            "node": "Discord通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-01-15T10:00:00.000Z",
+      "updatedAt": "2024-01-15T10:00:00.000Z",
+      "id": "life-tips",
+      "name": "生活小妙招"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-15T10:00:00.000Z",
+  "versionId": "1"
+}
