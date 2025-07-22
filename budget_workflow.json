@@ -1,0 +1,298 @@
+{
+  "meta": {
+    "instanceId": "budget-life-tips-video"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "id": "daily-trigger",
+      "name": "每日触发器",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "主题库",
+              "value": "清洁小技巧,厨房妙招,收纳整理,护肤美容,健康生活,省钱攻略,学习方法,时间管理,食物保存,衣物护理,植物养护,数码技巧,安全防范,手工DIY,运动健身,心理调节,人际沟通,职场技能,旅行贴士,环保生活"
+            }
+          ]
+        }
+      },
+      "id": "topic-database",
+      "name": "主题数据库",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 超低成本方案：使用免费API和简化流程\nconst topics = $input.first().json['主题库'].split(',');\nconst selectedTopic = topics[Math.floor(Math.random() * topics.length)];\n\n// 使用更简单但有效的提示词策略\nconst freePrompt = `生成${selectedTopic}相关的实用生活小妙招：\n要求：步骤简单，材料常见，30秒内可讲完，包含标题和3-5个操作步骤`;\n\n// 预设简单的图像描述（避免复杂AI图像生成）\nconst simpleImageDesc = `${selectedTopic}演示图，清晰简洁，教程风格`;\n\nreturn [{\n  json: {\n    topic: selectedTopic,\n    prompt: freePrompt,\n    imageDesc: simpleImageDesc,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "budget-prompt-gen",
+      "name": "经济提示词生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.cohere.ai/v1/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $credentials.cohere_api.api_key }}"
+            },
+            {
+              "name": "Content-Type", 
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "command-light"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ $json.prompt }}"
+            },
+            {
+              "name": "max_tokens",
+              "value": "200"
+            },
+            {
+              "name": "temperature",
+              "value": "0.6"
+            }
+          ]
+        }
+      },
+      "id": "cohere-free-text",
+      "name": "Cohere免费文本生成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.huggingface.co/models/runwayml/stable-diffusion-v1-5",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $credentials.huggingface_api.api_key }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "inputs",
+              "value": "={{ $json.imageDesc }}"
+            },
+            {
+              "name": "options",
+              "value": "{\"wait_for_model\": true}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "arrayBuffer"
+            }
+          }
+        }
+      },
+      "id": "huggingface-free-image",
+      "name": "HuggingFace免费图像",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.streamelements.com/kappa/v2/speech",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "voice",
+              "value": "zh-CN"
+            },
+            {
+              "name": "text",
+              "value": "={{ $('cohere-free-text').item.json.generations[0].text }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "arrayBuffer"
+            }
+          }
+        }
+      },
+      "id": "free-tts",
+      "name": "免费TTS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 超简化视频合成 - 使用本地工具或开源API\n// 这里模拟视频创建过程，实际可用FFmpeg或其他开源工具\n\nconst scriptText = $('cohere-free-text').item.json.generations[0].text;\nconst topic = $('budget-prompt-gen').item.json.topic;\n\n// 生成简单的HTML5视频数据结构\nconst videoData = {\n  title: `${topic}小妙招`,\n  script: scriptText,\n  duration: 30,\n  format: 'mp4',\n  resolution: '720x1280',\n  created: new Date().toISOString()\n};\n\n// 在实际应用中，这里会调用本地FFmpeg或其他视频工具\n// 生成模拟的视频URL\nconst mockVideoUrl = `https://your-storage.com/videos/${Date.now()}.mp4`;\n\nreturn [{\n  json: {\n    videoUrl: mockVideoUrl,\n    videoData: videoData,\n    title: videoData.title,\n    description: `${videoData.title} - 实用生活技巧分享 #生活小妙招 #实用技巧`\n  }\n}];"
+      },
+      "id": "simple-video-creation",
+      "name": "简化视频合成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 400]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "your-sheet-id",
+          "mode": "id"
+        },
+        "sheetName": "视频记录",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "日期": "={{ $now.format('yyyy-MM-dd') }}",
+            "主题": "={{ $('budget-prompt-gen').item.json.topic }}",
+            "标题": "={{ $json.title }}",
+            "视频链接": "={{ $json.videoUrl }}",
+            "成本": "$0"
+          }
+        }
+      },
+      "id": "free-logging",
+      "name": "免费记录",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1560, 400]
+    }
+  ],
+  "connections": {
+    "每日触发器": {
+      "main": [
+        [
+          {
+            "node": "主题数据库",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "主题数据库": {
+      "main": [
+        [
+          {
+            "node": "经济提示词生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "经济提示词生成": {
+      "main": [
+        [
+          {
+            "node": "Cohere免费文本生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cohere免费文本生成": {
+      "main": [
+        [
+          {
+            "node": "HuggingFace免费图像",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "免费TTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HuggingFace免费图像": {
+      "main": [
+        [
+          {
+            "node": "简化视频合成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "免费TTS": {
+      "main": [
+        [
+          {
+            "node": "简化视频合成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "简化视频合成": {
+      "main": [
+        [
+          {
+            "node": "免费记录",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "id": "budget",
+      "name": "超低成本"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-15T10:00:00.000Z",
+  "versionId": "1"
+}
